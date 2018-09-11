@@ -28,8 +28,6 @@
 #define VERSION_NUMBER "0.1b"
 #define VERSION VERSION_NUMBER " "  __DATE__
 
-
-
 struct SUptime {
 	uint32_t uptime;
 	uint32_t days;
@@ -41,26 +39,16 @@ struct SUptime {
 struct SAPRSLocation{
 	char latitude[9]; // 8 + null
 	char longitude[10]; // 9 + null
-//		char latitude[15]; // 8 + null
-//		char longitude[15]; // 9 + null
-
 };
 
-
-
- SAPRSLocation aprsLocation;
-
-
+SAPRSLocation aprsLocation;
 SUptime SYSUptime;
-
 TinyGPSPlus gps;
 
 char strBuffer[40];		// buferis char operacijoms
 
 uint32_t last_timestamp, timestamp = 0;
 uint32_t cMillis, lMillis = 0;
-
-
 
 // funkcija, kuri priima ieinanti paketa, kadangi mes tik transliuojam
 // tai si funkcija tuscia.
@@ -95,7 +83,6 @@ void setup() {
 
 	// You can define preamble and tail like this:
 	 APRS_setPreamble(APRS_PREAMBLE);
-//		 APRS_setPreamble(450);
 	 APRS_setTail(70);
 
 	// Balionas - "O", zmogus - "[", masina - ">"
@@ -118,15 +105,12 @@ void locationUpdate(){
 	//5442.30N lon 02515.19E
 	APRS_setLat(aprsLocation.latitude);
 	APRS_setLon(aprsLocation.longitude);
-//	APRS_setLat("5442.30N");
-//	APRS_setLon("02515.19E");
 //	char *comment = "LibAPRS test";
 //	APRS_sendLoc(comment, strlen(comment));
 	sprintf(strBuffer,"Morka-1 UP: %d d. %02d:%02d", (int) SYSUptime.days,(int) SYSUptime.hours, (int) SYSUptime.mins);
 	Serial.println(strBuffer);
 	APRS_sendLoc(strBuffer, strlen(strBuffer));
 	setPTT(OFF);
-
 }
 
 /*
@@ -140,7 +124,6 @@ void setPTT(int state){
 	if (state == ON) {
 		delay(DELAY_AFTER_PTT_ON);
 	}
-
 }
 
 void blink(int d=25){
@@ -174,12 +157,10 @@ void gpsToAprs(double lat, double lon){
 	int deg_lat = (int) lat;// konversija i int panaikina skaiciu po kablelio.
 	int deg_lon = (int) lon;
 
-
 	double f = lat * 60;
 	int lat_min = (uint32_t) f % 60;	 // minutes
 	f *= 100;
 	int lat_min_p = (uint32_t) f % 100; // minuciu skaicius po kablelio
-
 
 	f = lon * 60;
 	int lon_min = (uint32_t) f % 60;	 // minutes
@@ -195,7 +176,6 @@ void gpsToAprs(double lat, double lon){
 			lon_min, lon_min_p, h_lon);
 	strncpy(aprsLocation.longitude, strBuffer, sizeof(aprsLocation.longitude));
 
-
 	// segfault :/
 //	snprintf_P(aprsLocation.latitude, sizeof(aprsLocation.latitude),
 //			PSTR("%02d%02d.%02d%01s"), deg_lat, lat_min, lat_min_p,h_lat
@@ -203,8 +183,6 @@ void gpsToAprs(double lat, double lon){
 //	snprintf_P(aprsLocation.longitude, sizeof(aprsLocation.longitude),
 //			PSTR("%03d%02d.%02d%01s"), deg_lon, lon_min, lon_min_p,h_lon
 //			);
-
-
 }
 
 void displayInfo(){
@@ -249,9 +227,7 @@ void displayInfo(){
 	} else {
 		Serial.print(F("INVALID"));
 	}
-
 	Serial.println();
-
 }
 
 /*
@@ -265,15 +241,11 @@ void timerEverySecond(){
 	}
 
 	if ((timestamp % 3) == 0) {
-//		gpsToAprs(54.705383,25.252481);
 		Serial.print(String(aprsLocation.latitude) + '/' + String(aprsLocation.longitude)+" ");
 		displayInfo();
-
-
 	}
 	if ((timestamp % 10) == 0) {
 		Serial.println("Up: " + String(SYSUptime.uptime));
-
 	}
 	if ((timestamp % PACKET_INTERVAL) == 0) {
 		// sitas isValid() nevisai geras budas, nes kartais gali issiusti neteisinga arba sena informacija
