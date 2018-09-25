@@ -1,6 +1,8 @@
 #include "Arduino.h"
 #include <LibAPRS.h>
 #include <TinyGPS++.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 
 // kas kiek laiko (sekundemis) siusim pozicijos paketa
@@ -13,7 +15,10 @@
 
 // LY3FF-1
 #define APRS_CALLSIGN "LY3FF"
-#define APRS_SSID     1
+#define APRS_SSID     15
+
+// saukinys 9 baitu ilgio formate telemetrijos paketu generavimui, bus irasyta i progmem
+#define APRS_TELEMETRY_CALL "LY3FF-15 "
 
 // milisekundemis
 #define DELAY_AFTER_PTT_ON 500
@@ -22,11 +27,106 @@
 #define OPEN_SQUELCH false
 #define PTT_PIN 11
 
+// Temperaturos davikliai ant sios kojos
+#define ONE_WIRE_BUS 12
+
+
+
 #define ON LOW
 #define OFF HIGH
 
 #define VERSION_NUMBER "0.1b"
 #define VERSION VERSION_NUMBER " "  __DATE__
+
+class APRSTelemetry{
+	// KISS -- Keep It Simple Stupid
+	/*
+	 * Analog channel 1 - Battery Voltage
+	 * Analog channel 2 - Inside temperature
+	 * Analog channel 3 - Outside temperature
+	 *
+	 */
+
+	/*
+	 * Note: Again, the field widths are not all the same, and the byte counts include the comma separators
+	 * where shown. The list can terminate after any field.
+	*/
+
+	const PROGMEM char TELEMETRY_PARAM_NAMES[] = ":" APRS_TELEMETRY_CALL ":PARM.Battery,ITemp,OTemp";
+	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.V/100,deg.C,deg.C";
+	// TODO: update equations
+	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,.53,-32,3,4.39,49,-32,3,18,1,2,3";
+
+	/*
+	 * five channels in sets of 3
+	 * a * v**2 + b * v + c
+	 *
+	 */
+
+	void updateBatteryVoltage(double voltage){
+		//TODO: nustatyti itampos kanalo baita pagal lygti
+		// (int) (4.2 * 100) / 5,2 = 80
+		this->voltage =  (voltage * 100) / 5.2;
+
+	}
+
+	void updateTemperatures(int temp1, int temp2){
+		// TODO: nustatyti temperaturu baitus pagal lygtis
+		this->temperature[0] = temp1;
+		this->temperature[1] = temp2;
+	}
+
+	void generateTelemetryPacket(){
+		// T#MIC199,000,255,073,123,01101001   -- 33 bytes
+//		packet_length = sprintf_P(packet_buffer, PSTR("aaa"),0);
+		packet_length = sprintf_P(packet_buffer, PSTR("T#MIC%03u,%03u,%03u,%03u,%03u"),
+				this->voltage, this->temperature[0], this->temperature[1], 0, 0);
+		strncat(&packet_buffer[packet_length],bits, 8);
+		packet_length +=8;
+
+	}
+
+	void sendTelemetryPacket(){
+		Serial.println(packet_buffer);
+	}
+
+	void setBit(uint8_t bit, bool state){
+		if (bit - 1 < 8) {
+			bits[bit] = (state ? "1" : "0");
+		}
+	}
+
+	bool getBit(uint8_t bit){
+		if (bit - 1 < 8) {
+			return (bits[bit] == "1");
+		}
+		return false;
+	}
+
+
+	char packet_buffer[33];
+	int packet_length = 0;
+	char bits[9] = { '0', '0', '0', '0', '0', '0', '0', '0', 0 };
+
+private:
+	char temperature[2] = { 0, 0 };
+	char voltage = 0;
+
+
+
+	void setup(){
+
+	}
+
+	void loop(){
+
+	}
+
+};
+
+
+
+
 
 struct SUptime {
 	uint32_t uptime;
@@ -44,6 +144,10 @@ struct SAPRSLocation{
 SAPRSLocation aprsLocation;
 SUptime SYSUptime;
 TinyGPSPlus gps;
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+APRSTelemetry telemetrija;
+
 
 char strBuffer[40];		// buferis char operacijoms
 
@@ -91,12 +195,14 @@ void setup() {
 	Serial.println(F("*** Startup ***"));
 	Serial.println(F("Seklys MORKA-1"));
 	Serial.println(F("Versija " VERSION));
+	Serial.println(F("Starting sensors"));
+	sensors.begin();
+	sensors.setResolution(10); // zemesne rezoliucija - greiciau nuskaito
 
 }
 
 void locationUpdate(){
 	setPTT(ON);
-	APRS_setPower(2);
 	// http://www.earthpoint.us/Convert.aspx
 	// GPS duoda Laipsniai.laipsnio dalys
 //	Location: 54,705383,25.252481  Date/Time: 9/9/2018 15:31:43.00
@@ -230,6 +336,17 @@ void displayInfo(){
 	Serial.println();
 }
 
+void readSensors(){
+	  Serial.print(F("Requesting temperatures..."));
+	  sensors.requestTemperatures(); // Send the command to get temperatures
+	  Serial.println(F("DONE"));
+	  Serial.print("Temperature for the device 1 (index 0) is: ");
+	  Serial.println(sensors.getTempCByIndex(0)); // onboard
+	  Serial.println(sensors.getTempCByIndex(1)); // ant laido
+
+}
+
+
 /*
  * Kvieciamas kas sekunde, nors negarantuotai, kad kas kiekviena sekunde. Kvieciama is main loop()
  */
@@ -239,10 +356,13 @@ void timerEverySecond(){
 	if (gps.location.isValid()) {
 		blink(50);
 	}
+//	readSensors();
 
 	if ((timestamp % 3) == 0) {
+		readSensors();
 		Serial.print(String(aprsLocation.latitude) + '/' + String(aprsLocation.longitude)+" ");
 		displayInfo();
+
 	}
 	if ((timestamp % 10) == 0) {
 		Serial.println("Up: " + String(SYSUptime.uptime));
@@ -256,6 +376,8 @@ void timerEverySecond(){
 	}
 
 }
+
+
 
 // The loop function is called in an endless loop
 void loop() {
