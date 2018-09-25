@@ -1,5 +1,6 @@
 
-(Seklys) Morka-1
+Projektas LKB - Lietuviška kelionė balionu
+
 
 Hardware serial port RX:  9600 BPS GPS imtuvas
 TX laisvas, galima naudot debug output'ui
