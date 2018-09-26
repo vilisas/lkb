@@ -19,7 +19,7 @@
 
 // saukinys 9 baitu ilgio formate telemetrijos paketu generavimui, bus irasyta i progmem
 #define APRS_TELEMETRY_CALL "LY3FF-15 "
-
+//                           123456789
 // milisekundemis
 #define DELAY_AFTER_PTT_ON 500
 #define APRS_PREAMBLE 550
@@ -38,12 +38,19 @@
 #define VERSION_NUMBER "0.1b"
 #define VERSION VERSION_NUMBER " "  __DATE__
 
+#define TELEMETRY_TEST 1
+
 class APRSTelemetry{
 	// KISS -- Keep It Simple Stupid
 	/*
 	 * Analog channel 1 - Battery Voltage
 	 * Analog channel 2 - Inside temperature
 	 * Analog channel 3 - Outside temperature
+	 *
+	 * 8 digital channels
+	 *
+	 * every digital channel is set as literal 1 or 0 directly in bits[8] char array.
+	 * Later we just add this array to the telemetry packet end
 	 *
 	 */
 
@@ -52,10 +59,35 @@ class APRSTelemetry{
 	 * where shown. The list can terminate after any field.
 	*/
 
+
+	private:
+	char temperature[2] = { 0, 0 };
+	char voltage = 0;
+
+	unsigned int ts_read_sensors = 0; //
+	unsigned int ts_telemetry_packet = 0;
+	unsigned int ts_unit_packet = 0;
+	unsigned int ts_parameter_packet = 0;
+	unsigned int ts_eqns_packet = 0;
+
+	OneWire *oneWire;
+	DallasTemperature *sensors;
+//	OneWire oneWire(12);
+//	DallasTemperature sensors(&oneWire);
+	//	OneWire oneWire(ONE_WIRE_BUS);
+	//	DallasTemperature sensors(&oneWire);
+
+
+	public:
+	//char packet_buffer[34];	// siaip 34 baitai su null gale, bet paliekam truputi atsargos
+	char packet_buffer[40];
+	int packet_length = 0;
+	char bits[9] = { '0', '0', '0', '0', '0', '0', '0', '0', 0 };
+
 	const PROGMEM char TELEMETRY_PARAM_NAMES[] = ":" APRS_TELEMETRY_CALL ":PARM.Battery,ITemp,OTemp";
 	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.V/100,deg.C,deg.C";
 	// TODO: update equations
-	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,.53,-32,3,4.39,49,-32,3,18,1,2,3";
+	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,.53,-32,3,4.39,49,-32,3,18,1,2,3" ;
 
 	/*
 	 * five channels in sets of 3
@@ -77,50 +109,140 @@ class APRSTelemetry{
 	}
 
 	void generateTelemetryPacket(){
+		/*
+		 * suraso telemetrijos paketa i packet_buffer. nurodo paketo ilgi i packet_length
+		 */
 		// T#MIC199,000,255,073,123,01101001   -- 33 bytes
 //		packet_length = sprintf_P(packet_buffer, PSTR("aaa"),0);
-		packet_length = sprintf_P(packet_buffer, PSTR("T#MIC%03u,%03u,%03u,%03u,%03u"),
+		packet_length = sprintf_P(packet_buffer, PSTR("T#MIC%03u,%03u,%03u,%03u,%03u,"),
 				this->voltage, this->temperature[0], this->temperature[1], 0, 0);
 		strncat(&packet_buffer[packet_length],bits, 8);
 		packet_length +=8;
 
 	}
 
-	void sendTelemetryPacket(){
-		Serial.println(packet_buffer);
+	void generateParametersPacket(){
+		Serial.println(F("Generating parameters packet"));
+
 	}
+
+	void generateUnitsPacket(){
+		// TODO generate unit description packet
+		Serial.println(F("Generating units packet"));
+
+	}
+
+	void generateEQNSPacket(){
+		// TODO generate equations packet
+		Serial.println(F("Generating equations packet"));
+
+	}
+
+	void sendTelemetryPacket(){
+		Serial.print(F("packet_buffer='"));
+		Serial.print(packet_buffer);
+		Serial.println(F("'"));
+		Serial.print(F("packet_length="));
+		Serial.println(this->packet_length);
+		memset(packet_buffer,0,sizeof(packet_buffer));
+		packet_length=0;
+	}
+
 
 	void setBit(uint8_t bit, bool state){
 		if (bit - 1 < 8) {
-			bits[bit] = (state ? "1" : "0");
+			bits[bit] = (state ? '1' : '0');
 		}
 	}
 
 	bool getBit(uint8_t bit){
 		if (bit - 1 < 8) {
-			return (bits[bit] == "1");
+			return (bits[bit] == '1');
 		}
 		return false;
 	}
 
+	void readTemperatureSensors(){
 
-	char packet_buffer[33];
-	int packet_length = 0;
-	char bits[9] = { '0', '0', '0', '0', '0', '0', '0', '0', 0 };
+		  Serial.print(F("Requesting temperatures..."));
+		sensors->requestTemperatures();
+//		  sensors.requestTemperatures(); // Send the command to get temperatures
+		  Serial.println(F("DONE"));
+//		  Serial.println(sensors->getTempCByIndex(0));
+//		  Serial.println(sensors->getTempCByIndex(1));
+//		  Serial.print(F("Temperature for the device 1 (index 0) is: "));
+//		  Serial.println(sensors.getTempCByIndex(0)); // onboard
+//		  Serial.println(sensors.getTempCByIndex(1)); // ant laido
 
-private:
-	char temperature[2] = { 0, 0 };
-	char voltage = 0;
 
+	}
 
 
 	void setup(){
+		Serial.println(F("APRSTelemetry::setup()\nInitializing temp. sensors"));
+
+		this->oneWire = new OneWire(ONE_WIRE_BUS);
+		this->sensors = new DallasTemperature(this->oneWire);
+
+		sensors->begin();
+		sensors->setResolution(9); // zemesne rezoliucija - greiciau nuskaito (9 bitai - puses laipsnio tikslumu)
+
 
 	}
 
 	void loop(){
+		unsigned int seconds = (millis() / 1000);
+
+		if (seconds - this->ts_read_sensors > 3){
+			// read temperature sensors
+			this->readTemperatureSensors();
+
+			this->updateTemperatures(sensors->getTempCByIndex(0), sensors->getTempCByIndex(1));
+//			telemetrija.updateTemperatures(sensors.getTempCByIndex(0), sensors.getTempCByIndex(1));
+			this->ts_read_sensors = seconds;
+		}
+
+		if (seconds - this->ts_telemetry_packet > 10){
+			this->generateTelemetryPacket();
+			this->sendTelemetryPacket();
+			this->ts_telemetry_packet = seconds;
+		}
+
+
+
+		if (seconds - this->ts_unit_packet > 30){
+			this->generateUnitsPacket();
+			this->sendTelemetryPacket();
+			this->ts_unit_packet = seconds;
+		}
+
+		if (seconds - this->ts_parameter_packet > 40){
+			this->generateParametersPacket();
+			this->sendTelemetryPacket();
+			this->ts_parameter_packet = seconds;
+		}
+
+		if (seconds - this->ts_eqns_packet > 50){
+			this->generateEQNSPacket();
+			this->sendTelemetryPacket();
+			this->ts_eqns_packet = seconds;
+		}
+
+
+
+
 
 	}
+
+
+
+
+
+#ifdef TELEMETRY_TEST
+	void test(){
+
+	}
+#endif
 
 };
 
@@ -129,11 +251,11 @@ private:
 
 
 struct SUptime {
-	uint32_t uptime;
-	uint32_t days;
-	uint8_t  hours;
-	uint8_t  mins;
-	uint8_t  secs;
+	uint16_t uptime;
+	uint16_t days;
+	uint16_t  hours;
+	uint16_t  mins;
+	uint16_t  secs;
 };
 
 struct SAPRSLocation{
@@ -144,8 +266,6 @@ struct SAPRSLocation{
 SAPRSLocation aprsLocation;
 SUptime SYSUptime;
 TinyGPSPlus gps;
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
 APRSTelemetry telemetrija;
 
 
@@ -182,6 +302,7 @@ void setup() {
 
 	// Initialise APRS library - This starts the modem
 	APRS_init(ADC_REFERENCE, OPEN_SQUELCH);
+
 	// Callsign & SSID
 	APRS_setCallsign(APRS_CALLSIGN, APRS_SSID);
 
@@ -193,29 +314,34 @@ void setup() {
 	// APRS_setSymbol('O');   // balionas "O", jei pagrindine simboliu lentele
 	APRS_setSymbol('[');	// zmogus - "["
 	Serial.println(F("*** Startup ***"));
-	Serial.println(F("Seklys MORKA-1"));
+	Serial.println(F("HAB LKB"));
 	Serial.println(F("Versija " VERSION));
-	Serial.println(F("Starting sensors"));
-	sensors.begin();
-	sensors.setResolution(10); // zemesne rezoliucija - greiciau nuskaito
+	telemetrija.setup();
+
 
 }
 
 void locationUpdate(){
+	/*
+	 * Cia paruosiam lokacijos paketa, sukuriam komentara ir istransliuojam
+	 */
+
 	setPTT(ON);
+
 	// http://www.earthpoint.us/Convert.aspx
 	// GPS duoda Laipsniai.laipsnio dalys
-//	Location: 54,705383,25.252481  Date/Time: 9/9/2018 15:31:43.00
-
+    // Location: 54,705383,25.252481  Date/Time: 9/9/2018 15:31:43.00
 	// APRS reikia: Laipsniai Minutes.minutes dalys (ne sekundes)
-	//5442.30N lon 02515.19E
+	// 5442.30N lon 02515.19E
+
 	APRS_setLat(aprsLocation.latitude);
 	APRS_setLon(aprsLocation.longitude);
-//	char *comment = "LibAPRS test";
-//	APRS_sendLoc(comment, strlen(comment));
-	sprintf(strBuffer,"Morka-1 UP: %d d. %02d:%02d", (int) SYSUptime.days,(int) SYSUptime.hours, (int) SYSUptime.mins);
-	Serial.println(strBuffer);
-	APRS_sendLoc(strBuffer, strlen(strBuffer));
+
+	int count = sprintf(strBuffer,"LKB Up: %u d. %u h.", SYSUptime.days, SYSUptime.hours); // "LKB Up: 1 d. 15 h.";
+//	Serial.println(strBuffer);
+
+	APRS_sendLoc(strBuffer, count);
+//	APRS_sendLoc(strBuffer, strlen(strBuffer));
 	setPTT(OFF);
 }
 
@@ -336,15 +462,6 @@ void displayInfo(){
 	Serial.println();
 }
 
-void readSensors(){
-	  Serial.print(F("Requesting temperatures..."));
-	  sensors.requestTemperatures(); // Send the command to get temperatures
-	  Serial.println(F("DONE"));
-	  Serial.print("Temperature for the device 1 (index 0) is: ");
-	  Serial.println(sensors.getTempCByIndex(0)); // onboard
-	  Serial.println(sensors.getTempCByIndex(1)); // ant laido
-
-}
 
 
 /*
@@ -359,7 +476,7 @@ void timerEverySecond(){
 //	readSensors();
 
 	if ((timestamp % 3) == 0) {
-		readSensors();
+
 		Serial.print(String(aprsLocation.latitude) + '/' + String(aprsLocation.longitude)+" ");
 		displayInfo();
 
@@ -383,6 +500,7 @@ void timerEverySecond(){
 void loop() {
 	timestamp = millis()/1000;
 
+	// read GPS info from serial port if available
 	while (Serial.available()){
 	    if (gps.encode(Serial.read())){
 	    	if (gps.location.isValid()) {
@@ -390,6 +508,8 @@ void loop() {
 	    	}
 	    }
 	}
+
+	telemetrija.loop();		// do telemetry stuff - generate and send packets when needed
 
 	if (timestamp != last_timestamp) timerEverySecond();
 	last_timestamp = timestamp;
