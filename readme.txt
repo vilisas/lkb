@@ -2,9 +2,19 @@
 Projektas LKB - Lietuviška kelionė balionu
 
 
-Hardware serial port RX:  9600 BPS GPS imtuvas
-TX laisvas, galima naudot debug output'ui
-PTT PIN 11, kitos porto kojos naudojamos LibAPRS bibliotekos, neziurint to, kad signalo generavimui naudojami tik 4 bitai - 4 porto kojos.
+RX  - 9600 BPS GPS imtuvas (Hardware Serial)
+TX  - Laisvas, galima naudot debug output'ui
+
+D4 \
+D5 |_  4 bitu DAC APRS signalo generavimui (pagal MicroModem manual)
+D6 | 
+D7 /
+
+D11 - PTT, kitos porto kojos naudojamos LibAPRS bibliotekos, nežiūrint to, kad signalo generavimui naudojami tik 4 bitai - 4 porto kojos
+D13 - Status LED.
+A0  - Naudoja libAPRS, taigi, jos naudoti negalim.
+A1  - Naudojam baterijos įtampos nuskaitymui.
+
 
 LED mirgsejimai:
  1x - programa veikia
