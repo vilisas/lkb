@@ -4,7 +4,6 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-
 // kas kiek laiko (sekundemis) siusim pozicijos paketa
 #define PACKET_INTERVAL 60
 #define TELEMETRY_PACKET_INTERVAL 30
@@ -61,7 +60,11 @@ class APRSTelemetry{
 
 # define VOLTAGE_ADC_PIN (char) A2
 # define MB_DIVIDER_R1  10000
-# define MB_DIVIDER_R2  1000
+# define MB_DIVIDER_R2  10000
+/*
+ * Max reported voltage - 6.4 V, see scripts/battery.pl
+ */
+
 /*
  * ADC (Vcc/maitinimo) itampa, cia reikia nurodyti kuo tikslesne, kad baterijos itampos matavimai butu
  * kuo tikslesni. 5.2f
@@ -212,9 +215,12 @@ class APRSTelemetry{
 
 	}
 	void readBatteryVoltage(){
+		// read ADC channel, calculate value and store it to class attribute
 		// Jei reference voltage: 5.20V  daliklis: + 3k --- 750R --- (-)
 		// max adc reiksme = 1024 prie 26V
 		uint16_t adcValue = analogRead(VOLTAGE_ADC_PIN);
+		Serial.print(F("adcValue="));
+		Serial.println(adcValue);
 		this->_battery_voltage = ((double) (adcValue * _mbMaxVoltage) / 1024);
 	}
 
@@ -241,10 +247,13 @@ void APRSTelemetry::loop(){
 	if (seconds - this->_ts_read_sensors > 3){
 		// read temperature sensors
 		this->readTemperatureSensors();
+		this->readBatteryVoltage();
 
 		this->updateTemperatures(_sensors->getTempCByIndex(0), _sensors->getTempCByIndex(1));
+		this->updateBatteryVoltage();
 //			telemetrija.updateTemperatures(sensors.getTempCByIndex(0), sensors.getTempCByIndex(1));
 		this->_ts_read_sensors = seconds;
+
 	}
 
 	if (seconds - this->_ts_telemetry_packet > TELEMETRY_PACKET_INTERVAL){
