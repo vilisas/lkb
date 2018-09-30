@@ -222,6 +222,13 @@ class APRSTelemetry{
 		Serial.print(F("adcValue="));
 		Serial.println(adcValue);
 		this->_battery_voltage = ((double) (adcValue * _mbMaxVoltage) / 1024);
+		/*Parodo baterijos itampa serial porte, BET, itampa skaiciuojama analog reference atzvilgiu, kas pas mus yra maitinimo itampa.
+		 * Kai modulis maitinasi is baterijos per itampos stabilizatoriu, tai analog reference = 3.2V, bet jei prisijungiam per USB
+		 * tai itampa gaunasi 5V. Rezultate _battery_voltage reiksme bus skirtinga. Darbiniam rezime telemetrijos pakete viskas turetu eiti.
+		 * Norint serial porte matyti teisinga reiksme, reikia pakeisti MB_ADC_VOLTAGE is 3.2 i 5.0
+		 */
+		Serial.println(F("Battery Voltage:"));
+		Serial.println(this->_battery_voltage);
 	}
 
 	void setup();
