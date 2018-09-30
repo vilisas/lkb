@@ -3,6 +3,26 @@
 #include <TinyGPS++.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+/*
+ * Arduino: Arduino nano
+ * GPS imtuvas
+ * VHF trx modulis: SA828
+ * Itampos reguliatorius: Pololu2561
+ * GPS ir arduino maitinasi nuo Pololu2561 (Step up ir stabilizacija jei > 3.2v)
+ * TRX maitinasi tiesiogiai nuo baterijos
+ * APRS signala generuoja arduino naudojant libAPRS, RX nenaudojamas
+ * Temperaturos sensoriai (2) 1-WIRE Dallas ds18b20
+ *
+ * Telemetrija:
+ * Baterijos itampa
+ * Isores temperatura
+ * Vidaus temperatura
+ *
+ * TODO:
+ * Telemetrija:
+ * 	aukstis pedomis
+ *
+ */
 
 // kas kiek laiko (sekundemis) siusim pozicijos paketa
 #define PACKET_INTERVAL 60
@@ -33,14 +53,14 @@
 #define ON LOW
 #define OFF HIGH
 
-#define VERSION_NUMBER "0.1b"
+#define VERSION_NUMBER "0.2b"
 #define VERSION VERSION_NUMBER " "  __DATE__
 
 	const PROGMEM char TELEMETRY_PARAM_NAMES[] = ":" APRS_TELEMETRY_CALL ":PARM.Battery,ITemp,OTemp";
-	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.V/100,deg.C,deg.C";
+	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.v/100,deg.C,deg.C";
 	// TODO: update equations
 //	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,.53,-32,3,4.39,49,-32,3,18,1,2,3" ;
-	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,-55,0,0,-55" ;
+	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,1,-55,0,1,-55" ;
 
 class APRSTelemetry{
 	// KISS -- Keep It Simple Stupid
