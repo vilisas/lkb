@@ -25,6 +25,7 @@ Naudojamos bibliotekos:
 
 TinyGPSPlus-1.0.2
 LibAPRS-master
+APRSTelemetry
 
 
 

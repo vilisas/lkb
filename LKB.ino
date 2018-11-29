@@ -98,8 +98,13 @@ void setup() {
 
 	pinMode(13, OUTPUT);	//LED
 	digitalWrite(13, LOW);
+
 	pinMode(PTT_PIN, OUTPUT);		//PTT
 	digitalWrite(PTT_PIN, OFF);
+
+	pinMode(CS_PIN, OUTPUT);		//PTT
+	digitalWrite(PTT_PIN, LOW);
+
 
 	// Initialise APRS library - This starts the modem
 	APRS_init(ADC_REFERENCE, OPEN_SQUELCH);
@@ -156,11 +161,20 @@ void locationUpdate(){
  * 1) automatinis valdymas mums netinka, nes PTT siam moduliui reikia paspausti ir palaikyti bent puse sekundes,
  *    kad issiustu visa paketa
  * 2) reikalingas active LOW PTT lygis.
+ * TODO: use enumeration
  */
 void setPTT(int state){
-	digitalWrite(PTT_PIN, state);
 	if (state == ON) {
+		// set CS HIGH - turn on trx
+		digitalWrite(CS_PIN, HIGH);
+		digitalWrite(PTT_PIN, LOW);
+		// set PTT LOW
 		delay(DELAY_AFTER_PTT_ON);
+	} else {
+//		set CS LOW - shut down trx
+		digitalWrite(CS_PIN, LOW);
+//		turn PTT OFF
+		digitalWrite(PTT_PIN, HIGH);
 	}
 }
 
@@ -313,7 +327,11 @@ void readBatteryVoltage() {
 	uint16_t adcValue = analogRead(VOLTAGE_ADC_PIN);
 	Serial.print(F("adcValue="));
 	Serial.println(adcValue);
-	telemetrija.setBatteryVoltage((double) (adcValue * _mbMaxVoltage) / 1024);
+	double voltage = (double) (adcValue * _mbMaxVoltage) / 1024;
+	telemetrija.setBatteryVoltage(voltage);
+	Serial.print("voltage=");
+	Serial.println(voltage);
+//	telemetrija.setBatteryVoltage((double) (adcValue * _mbMaxVoltage) / 1024);
 }
 
 /**
