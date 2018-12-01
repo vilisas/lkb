@@ -1,6 +1,11 @@
 // kas kiek laiko (sekundemis) siusim pozicijos paketa
-#define PACKET_INTERVAL 60
-#define TELEMETRY_PACKET_INTERVAL 30
+#define PACKET_INTERVAL 10
+//#define TELEMETRY_PACKET_INTERVAL 45
+#define TELEMETRY_PACKET_INTERVAL 15
+
+// store valid GPS position to EEPROM
+#define STORE_GPS_POSITION_INTERVAL 60
+
 
 #include <APRSTelemetry.h>
 
@@ -8,6 +13,8 @@
 
 // 3V3 arba 5V, mes naudojam 3.3V. Kadangi nenaudojam RX, tai sitas nera svarbu
 #define ADC_REFERENCE REF_3V3
+
+// GPS input and debug output rate
 #define SERIAL_BAUDRATE 115200
 
 // LY3FF-1
@@ -17,18 +24,21 @@
 // saukinys 9 baitu ilgio formate telemetrijos paketu generavimui, bus irasyta i progmem
 #define APRS_TELEMETRY_CALL "LY1BWB-15"
 //                           123456789
-// time in milliseconds
-//#define DELAY_AFTER_PTT_ON 500
-#define DELAY_AFTER_PTT_ON 4000
+// time in milliseconds after CS set to HIGH and PTT activated
+//#define DELAY_AFTER_PTT_ON 2550
+#define DELAY_AFTER_PTT_ON 3550
 #define APRS_PREAMBLE 550
 
 #define OPEN_SQUELCH false
 #define PTT_PIN 11
 
 // chip select pin - LOW - TRX shutdown
-#define CS_PIN 10
+// A1
+#define CS_PIN (char) A1
 
-// Temperaturos davikliai ant sios kojos
+
+// 1-Wire temperature sensors pin
+// D12
 #define ONE_WIRE_BUS 12
 
 #define ON LOW
@@ -38,6 +48,7 @@
  * Max reported voltage - 6.4 V, see scripts/battery.pl
  */
 # define VOLTAGE_ADC_PIN (char) A2
+
 // resistor values in Ohms
 # define MB_DIVIDER_R1  10000
 # define MB_DIVIDER_R2  10000
@@ -51,4 +62,7 @@
 //# define MB_ADC_VOLTAGE 4.7f	//arduino per usb
 //#define MB_MAX_VOLTAGE ((MB_DIVIDER_R1 + MB_DIVIDER_R2) * MB_ADC_VOLTAGE) / MB_DIVIDER_R2
 
+// Balionas - "O", zmogus - "[", masina - ">"
+// APRS_setSymbol('O');   // balionas "O", jei pagrindine simboliu lentele
+#define APRS_SYMBOL '['
 
