@@ -1,10 +1,10 @@
 // kas kiek laiko (sekundemis) siusim pozicijos paketa
-#define PACKET_INTERVAL 10
-//#define TELEMETRY_PACKET_INTERVAL 45
-#define TELEMETRY_PACKET_INTERVAL 15
+#define PACKET_INTERVAL 60
+#define TELEMETRY_PACKET_INTERVAL 45
+//#define TELEMETRY_PACKET_INTERVAL 15
 
 // store valid GPS position to EEPROM
-#define STORE_GPS_POSITION_INTERVAL 60
+#define STORE_GPS_POSITION_INTERVAL 120
 
 
 #include <APRSTelemetry.h>
@@ -25,8 +25,9 @@
 #define APRS_TELEMETRY_CALL "LY1BWB-15"
 //                           123456789
 // time in milliseconds after CS set to HIGH and PTT activated
-//#define DELAY_AFTER_PTT_ON 2550
-#define DELAY_AFTER_PTT_ON 3550
+#define DELAY_AFTER_PTT_ON 2550
+#define DELAY_AFTER_PTT_OFF 800
+//#define DELAY_AFTER_PTT_ON 3550
 #define APRS_PREAMBLE 550
 
 #define OPEN_SQUELCH false

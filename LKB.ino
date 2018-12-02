@@ -41,12 +41,11 @@
 #define VERSION_NUMBER "0.3b"
 #define VERSION VERSION_NUMBER "-dev-"  __DATE__
 
-	const PROGMEM char TELEMETRY_PARAM_NAMES[] = ":" APRS_TELEMETRY_CALL ":PARM.Battery,ITemp,OTemp";
-	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.v/100,deg.C,deg.C";
-	// TODO: update equations
-//	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,0,.53,-32,3,4.39,49,-32,3,18,1,2,3" ;
-//	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,5.2,0,0,1,-55,0,1,-55" ;
-	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,1,0,0,1,-80,0,1,-80" ;
+	const PROGMEM char TELEMETRY_PARAM_NAMES[] = ":" APRS_TELEMETRY_CALL ":PARM.Battery,ITemp,OTemp,Pres,Alt,GPS";
+	const PROGMEM char TELEMETRY_PARAM_UNITS[] = ":" APRS_TELEMETRY_CALL ":UNIT.V,deg.C,deg.C,Mbar,m,Fix";
+	const PROGMEM char TELEMETRY_PARAM_EQUATIONS[] = ":" APRS_TELEMETRY_CALL ":EQNS.0,.01,0,0,1,-80,0,1,-80,0,1,0,0,10,0" ;
+	// ax^2 +b*v +c
+	const PROGMEM char TELEMETRY_PARAM_BITS[] = ":" APRS_TELEMETRY_CALL ":BITS.11111111,LKB Lietuva" ;
 
     const double _mbMaxVoltage = (((double) MB_DIVIDER_R1 + (double) MB_DIVIDER_R2) * (double) MB_ADC_VOLTAGE) / (double) MB_DIVIDER_R2;
     // 	Vs	 = ((R1 + R2) * Vs) / R2
@@ -62,7 +61,7 @@ struct SUptime {
 };
 
 struct SAPRSLocation{
-	char latitude[9]; // 8 + null
+	char latitude[9];   // 8 + null
 	char longitude[10]; // 9 + null
 	uint16_t checksum;
 };
@@ -80,6 +79,7 @@ char strBuffer[50];		// buferis char operacijoms
 
 uint32_t last_timestamp, timestamp = 0;
 uint32_t cMillis, lMillis = 0;
+uint32_t time_ptt_on = 0;
 
 unsigned int calculate_APRSLocation_checksum();
 
@@ -133,6 +133,7 @@ void setup() {
 	telemetrija._tpe = TELEMETRY_PARAM_EQUATIONS;
 	telemetrija._tpn = TELEMETRY_PARAM_NAMES;
 	telemetrija._tpu = TELEMETRY_PARAM_UNITS;
+	telemetrija._tpb = TELEMETRY_PARAM_BITS;
 	telemetrija.setSendPacketCallback(&sendTelemetryPacket);
 	telemetrija.setup();
 
@@ -164,13 +165,19 @@ void locationUpdate(){
 
 //	int count = sprintf(strBuffer, "LKB ALT: %u m., up: %u d. %u h.", (unsigned int) gps.altitude.meters(), SYSUptime.days, SYSUptime.hours); // "LKB Up: 1 d. 15 h.";
 	telemetrija.setBit(1, gps.location.isValid());
-	telemetrija.updateTelemetrySequence();
-	int count = sprintf(strBuffer, "LKB HAB |%s|", telemetrija._telemetry_comment);
+	telemetrija.updateTelemetryPacket();
+//	int count = sprintf_P(strBuffer, PSTR("LKB. Sat: %u Up: %u d %u h|%s|"),
+	int count = snprintf_P(strBuffer, sizeof(strBuffer), PSTR("LKB. Sat: %u Up: %u d %u h|%s|"),
+				(uint16_t) gps.satellites.value(),
+				SYSUptime.days,
+				SYSUptime.hours,
+				telemetrija._telemetry_comment
+	);
 	Serial.println(strBuffer);
 
 	setPTT(ON);
 	APRS_sendLoc(strBuffer, count);
-//	APRS_sendLoc(strBuffer, strlen(strBuffer));
+	delay(DELAY_AFTER_PTT_OFF);
 	setPTT(OFF);
 }
 
@@ -213,8 +220,6 @@ unsigned int calculate_APRSLocation_checksum() {
 	for (uint8_t i = 0; i < sizeof(aprsLocation.longitude); i++) {
 		sum += (uint8_t) aprsLocation.longitude[i];
 	}
-	Serial.print("cheksum=");
-	Serial.println(sum);
 	return sum;
 }
 
@@ -260,8 +265,6 @@ void gpsToAprs(double lat, double lon){
 			lon_min, lon_min_p, h_lon);
 	strncpy(aprsLocation.longitude, strBuffer, sizeof(aprsLocation.longitude));
 
-
-//	aprsLocation.checksum =
 	aprsLocation.checksum = calculate_APRSLocation_checksum();
 
 	// segfault :/
@@ -272,8 +275,6 @@ void gpsToAprs(double lat, double lon){
 //			PSTR("%03d%02d.%02d%01s"), deg_lon, lon_min, lon_min_p,h_lon
 //			);
 }
-
-
 
 void displayInfo(){
 	// debug output'as i serial porta
@@ -335,15 +336,14 @@ void timerEverySecond(){
 	if ((timestamp % 3) == 0) {
 		readBatteryVoltage();
 		readTemperatureSensors();
-
+		telemetrija.setAltitude(gps.altitude.meters()/10);
+		telemetrija.setPressure(0);
 
 		Serial.print(String(aprsLocation.latitude) + '/' + String(aprsLocation.longitude)+
 				" sats=" + gps.satellites.value() +
 				" hdop=" + gps.hdop.value() + " "
 				);
 		displayInfo();
-
-
 	}
 	if ((timestamp % 10) == 0) {
 		Serial.println("Up: " + String(SYSUptime.uptime));
@@ -362,7 +362,7 @@ void timerEverySecond(){
 		if (gps.location.isValid()){
 			setPTT(OFF); 	// just in case
 			EEPROM.put(0, aprsLocation);
-			Serial.println("GPS location backed up to EEPROM");
+			Serial.println(F("GPS location backed up to EEPROM"));
 		}
 
 	}
@@ -380,8 +380,6 @@ void readBatteryVoltage() {
 	 * Norint serial porte matyti teisinga reiksme, reikia pakeisti MB_ADC_VOLTAGE is 3.2 i 5.0
 	 */
 	uint16_t adcValue = analogRead(VOLTAGE_ADC_PIN);
-	Serial.print(F("adcValue="));
-	Serial.println(adcValue);
 	double voltage = (double) (adcValue * _mbMaxVoltage) / 1024;
 	telemetrija.setBatteryVoltage(voltage);
 	Serial.print("voltage=");
@@ -391,8 +389,7 @@ void readBatteryVoltage() {
 
 void readTemperatureSensors() {
 	temperature->requestTemperatures();
-	telemetrija.updateTemperatures(temperature->getTempCByIndex(0), temperature->getTempCByIndex(1));
-
+	telemetrija.setTemperatures(temperature->getTempCByIndex(0), temperature->getTempCByIndex(1));
 }
 
 /**
@@ -401,10 +398,11 @@ void readTemperatureSensors() {
 void sendTelemetryPacket(){
 		setPTT(ON);
 		Serial.println("sending telemetry packet");
-		Serial.println(String(telemetrija._packet_buffer));
+		Serial.println(String(telemetrija.packet_buffer));
 		Serial.print(F("packet_length="));
-		Serial.println((unsigned int) telemetrija._packet_length);
-		APRS_sendPkt(telemetrija._packet_buffer, telemetrija._packet_length);
+		Serial.println((unsigned int) telemetrija.packet_length);
+		APRS_sendPkt(telemetrija.packet_buffer, telemetrija.packet_length);
+		delay(DELAY_AFTER_PTT_OFF);
 		setPTT(OFF);
 }
 
