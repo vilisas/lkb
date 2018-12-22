@@ -24,6 +24,8 @@
  * TODO:
  * Telemetrija:
  * 	aukstis pedomis
+ * Watchdog
+ * Barometras
  *
  */
 
@@ -47,10 +49,8 @@
 	// ax^2 +b*v +c
 	const PROGMEM char TELEMETRY_PARAM_BITS[] = ":" APRS_TELEMETRY_CALL ":BITS.11111111,LKB Lietuva" ;
 
-    const double _mbMaxVoltage = (((double) MB_DIVIDER_R1 + (double) MB_DIVIDER_R2) * (double) MB_ADC_VOLTAGE) / (double) MB_DIVIDER_R2;
+//    const double _mbMaxVoltage = (((double) MB_DIVIDER_R1 + (double) MB_DIVIDER_R2) * (double) MB_ADC_VOLTAGE) / (double) MB_DIVIDER_R2;
     // 	Vs	 = ((R1 + R2) * Vs) / R2
-
-
 
 struct SUptime {
 	uint16_t uptime;
@@ -98,14 +98,15 @@ void updateSysUptime(const uint32_t& tstamp){
 volatile uint32_t newlines = 0UL;
 
 void setup() {
+
 	analogReference(INTERNAL);
 	updateSysUptime(0);
 	gpsToAprs(0,0);
 	// Greitis pagal GPS imtuva. RX pin - imtuvas, TX - debug output (USB)
 	Serial.begin(SERIAL_BAUDRATE);
 
-	pinMode(13, OUTPUT);	//LED
-	digitalWrite(13, LOW);
+	pinMode(LED_PIN, OUTPUT);	//LED
+	digitalWrite(LED_PIN, LOW);
 
 	pinMode(PTT_PIN, OUTPUT);		//PTT
 	digitalWrite(PTT_PIN, OFF);
@@ -128,7 +129,7 @@ void setup() {
 	// APRS_setSymbol('O');   // balionas "O", jei pagrindine simboliu lentele
 	APRS_setSymbol(APRS_SYMBOL);	// zmogus - "["
 	Serial.println(F("*** Startup ***"));
-	Serial.println(F("HAB LKB"));
+	Serial.println(F("LKB HAB"));
 	Serial.println(F("Versija " VERSION));
 
 	telemetrija._tpe = TELEMETRY_PARAM_EQUATIONS;
@@ -143,7 +144,6 @@ void setup() {
 	temperature = new DallasTemperature(oneWire);
 	temperature->begin();
 	temperature->setResolution(9); // 0.5 degree resolution
-
 
 	EEPROM.get(0, aprsLocation);
 
@@ -206,9 +206,9 @@ void setPTT(int state){
 
 void blink(int d=25){
 	// ciklo laikas milisekundemis = d * 2
-		digitalWrite(13, HIGH);
+		digitalWrite(LED_PIN, HIGH);
 		delay(d);
-		digitalWrite(13, LOW);
+		digitalWrite(LED_PIN, LOW);
 		delay(d);
 }
 
@@ -268,7 +268,7 @@ void gpsToAprs(double lat, double lon){
 
 	aprsLocation.checksum = calculate_APRSLocation_checksum();
 
-	// segfault :/
+  // segfault
 //	snprintf_P(aprsLocation.latitude, sizeof(aprsLocation.latitude),
 //			PSTR("%02d%02d.%02d%01s"), deg_lat, lat_min, lat_min_p,h_lat
 //			);
@@ -322,8 +322,6 @@ void displayInfo(){
 	Serial.println();
 }
 
-
-
 /*
  * Kvieciamas kas sekunde, nors negarantuotai, kad kas kiekviena sekunde. Kvieciama is main loop()
  */
@@ -365,14 +363,11 @@ void timerEverySecond(){
 			EEPROM.put(0, aprsLocation);
 			Serial.println(F("GPS location backed up to EEPROM"));
 		}
-
 	}
-
-
 }
 
 /**
- * reads battery voltage from ADC pin
+ * reads VCC voltage
  */
 
 long readVcc() {
@@ -387,14 +382,6 @@ long readVcc() {
 	result = 1126400L / result; // Back-calculate AVcc in mV
 	result += VCC_OFFSET;
 	return result;
-
-//	analogRead(6);
-//	bitSet(ADMUX,3);
-//	delayMicroseconds(250);
-//	bitSet(ADCSRA,ADSC);
-//	while (bit_is_set(ADCSRA,ADSC));
-//	uint16_t x = ADC;
-//	return x ? (1100L *1023 ) / x : -1;
 
 }
 
@@ -411,26 +398,16 @@ long readTemp() {
 	return result;
 }
 
+/*
+ * stores voltage value
+ */
 void updateBatteryVoltage() {
-	/* Parodo baterijos itampa serial porte, BET, itampa skaiciuojama analog reference atzvilgiu, kas pas mus yra maitinimo itampa.
-	 * Kai modulis maitinasi is baterijos per itampos stabilizatoriu, tai analog reference = 3.2V, bet jei prisijungiam per USB
-	 * tai itampa gaunasi 5V. Rezultate _battery_voltage reiksme bus skirtinga. Darbiniam rezime telemetrijos pakete viskas turetu eiti.
-	 * Norint serial porte matyti teisinga reiksme, reikia pakeisti MB_ADC_VOLTAGE is 3.2 i 5.0
-	 */
 	uint16_t vcc = readVcc();
-	Serial.println(vcc);
-	Serial.println(readTemp());
+//	Serial.println(vcc);
 	double voltage = ((double) vcc/1000);
 	telemetrija.setBatteryVoltage(voltage);
 	Serial.print("voltage=");
 	Serial.println(voltage);
-//	telemetrija.setBatteryVoltage((double) (adcValue * _mbMaxVoltage) / 1024);
-
-
-//	long readVcc() { long result; // Read 1.1V reference against AVcc ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle ADCSRA |= _BV(ADSC); // Convert while (bit_is_set(ADCSRA,ADSC)); result = ADCL; result |= ADCH<<8; result = 1126400L / result; // Back-calculate AVcc in mV return result; }
-//	void setup() { Serial.begin(9600); }
-//	void loop() { Serial.println( readVcc(), DEC ); delay(1000); }
-
 
 }
 
@@ -452,8 +429,6 @@ void sendTelemetryPacket(){
 		delay(DELAY_AFTER_PTT_OFF);
 		setPTT(OFF);
 }
-
-
 
 // The loop function is called in an endless loop
 void loop() {

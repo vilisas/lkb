@@ -45,6 +45,9 @@
 // D12
 #define ONE_WIRE_BUS 12
 
+#define LED_PIN 13
+
+
 #define ON LOW
 #define OFF HIGH
 
