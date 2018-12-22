@@ -30,6 +30,9 @@
 //#define DELAY_AFTER_PTT_ON 3550
 #define APRS_PREAMBLE 550
 
+// Ismatuotos ir rodomos itampos skirtumas, naudojama apskaiciuojant atmega328p maitinimo itampa pagal bandgap voltage
+#define VCC_OFFSET -160
+
 #define OPEN_SQUELCH false
 #define PTT_PIN 11
 

@@ -98,6 +98,7 @@ void updateSysUptime(const uint32_t& tstamp){
 volatile uint32_t newlines = 0UL;
 
 void setup() {
+	analogReference(INTERNAL);
 	updateSysUptime(0);
 	gpsToAprs(0,0);
 	// Greitis pagal GPS imtuva. RX pin - imtuvas, TX - debug output (USB)
@@ -334,7 +335,7 @@ void timerEverySecond(){
 	}
 
 	if ((timestamp % 3) == 0) {
-		readBatteryVoltage();
+		updateBatteryVoltage();
 		readTemperatureSensors();
 		telemetrija.setAltitude(gps.altitude.meters()/10);
 		telemetrija.setPressure(0);
@@ -373,18 +374,64 @@ void timerEverySecond(){
 /**
  * reads battery voltage from ADC pin
  */
-void readBatteryVoltage() {
+
+long readVcc() {
+	long result;
+	// Read 1.1V reference against AVcc
+	ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+	delay(2);  						// Wait for Vref to settle
+	ADCSRA |= _BV(ADSC);			// Convert
+	while (bit_is_set(ADCSRA,ADSC));
+	result = ADCL;
+	result |= ADCH<<8;
+	result = 1126400L / result; // Back-calculate AVcc in mV
+	result += VCC_OFFSET;
+	return result;
+
+//	analogRead(6);
+//	bitSet(ADMUX,3);
+//	delayMicroseconds(250);
+//	bitSet(ADCSRA,ADSC);
+//	while (bit_is_set(ADCSRA,ADSC));
+//	uint16_t x = ADC;
+//	return x ? (1100L *1023 ) / x : -1;
+
+}
+
+
+long readTemp() {
+	long result; // Read temperature sensor against 1.1V reference
+	ADMUX = _BV(REFS1) | _BV(REFS0) | _BV(MUX3);
+	delay(2); // Wait for Vref to settle
+	ADCSRA |= _BV(ADSC); // Convert
+	while (bit_is_set(ADCSRA,ADSC));
+	result = ADCL;
+	result |= ADCH<<8;
+	result = (result - 125) * 1075;
+	return result;
+}
+
+void updateBatteryVoltage() {
 	/* Parodo baterijos itampa serial porte, BET, itampa skaiciuojama analog reference atzvilgiu, kas pas mus yra maitinimo itampa.
 	 * Kai modulis maitinasi is baterijos per itampos stabilizatoriu, tai analog reference = 3.2V, bet jei prisijungiam per USB
 	 * tai itampa gaunasi 5V. Rezultate _battery_voltage reiksme bus skirtinga. Darbiniam rezime telemetrijos pakete viskas turetu eiti.
 	 * Norint serial porte matyti teisinga reiksme, reikia pakeisti MB_ADC_VOLTAGE is 3.2 i 5.0
 	 */
-	uint16_t adcValue = analogRead(VOLTAGE_ADC_PIN);
-	double voltage = (double) (adcValue * _mbMaxVoltage) / 1024;
+	uint16_t vcc = readVcc();
+	Serial.println(vcc);
+	Serial.println(readTemp());
+	double voltage = ((double) vcc/1000);
 	telemetrija.setBatteryVoltage(voltage);
 	Serial.print("voltage=");
 	Serial.println(voltage);
 //	telemetrija.setBatteryVoltage((double) (adcValue * _mbMaxVoltage) / 1024);
+
+
+//	long readVcc() { long result; // Read 1.1V reference against AVcc ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1); delay(2); // Wait for Vref to settle ADCSRA |= _BV(ADSC); // Convert while (bit_is_set(ADCSRA,ADSC)); result = ADCL; result |= ADCH<<8; result = 1126400L / result; // Back-calculate AVcc in mV return result; }
+//	void setup() { Serial.begin(9600); }
+//	void loop() { Serial.println( readVcc(), DEC ); delay(1000); }
+
+
 }
 
 void readTemperatureSensors() {
